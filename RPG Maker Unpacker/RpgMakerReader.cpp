@@ -25,8 +25,8 @@ bool RpgMakerReader::Open() {
 	return hFile != INVALID_HANDLE_VALUE;
 }
 
-void RpgMakerReader::Extract() {	
-	switch (GetVersion()) {
+void RpgMakerReader::Extract() {
+	if (Open()) switch (GetVersion()) {
 	case 1: ExtractV1(); break;
 	case 3: ExtractV3(); break;
 	}
@@ -38,30 +38,34 @@ void RpgMakerReader::ExtractV1() {
 	WCHAR szFileName[MAX_PATH];
 	uint8_t *buffer;
 
+	// Set file encryption key
+	key.uint32 = 0xDEADCAFE;
+
 	for (;;) {
 
 		// Get file name length
-		if (ReadFile(hFile, &nameLength, sizeof(nameLength), nullptr, nullptr) != sizeof(nameLength)) goto Cleanup;
+		if (!ReadFile(hFile, &nameLength, 4, nullptr, nullptr)) goto Cleanup;
 		DecryptIntV1(&nameLength);
 
 		// Get file name
-		if (nameLength > sizeof(nameLength)) goto Cleanup;
-		if (ReadFile(hFile, &fileName, nameLength, nullptr, nullptr) != nameLength) goto Cleanup;
+		if (nameLength > sizeof(fileName)) goto Cleanup;
+		if (!ReadFile(hFile, &fileName, nameLength, nullptr, nullptr)) goto Cleanup;
+		fileName[nameLength] = 0;
 		DecryptNameV1(fileName, nameLength);
 
 		// UTF-8 to UTF-16
-		MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, (LPCSTR) fileName, nameLength, szFileName, sizeof(szFileName));
+		MultiByteToWideChar(CP_UTF8, 0, (LPCSTR) fileName, nameLength + 1, szFileName, sizeof(szFileName));
 
 		// Get file length
-		if (ReadFile(hFile, &fileLength, sizeof(fileLength), nullptr, nullptr) != sizeof(fileLength)) goto Cleanup;
+		if (!ReadFile(hFile, &fileLength, 4, nullptr, nullptr)) goto Cleanup;
 		DecryptIntV1(&fileLength);
 
 		// Allocate memory
-		buffer = (uint8_t*) VirtualAlloc(nullptr, fileLength, MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
+		buffer = (uint8_t*) VirtualAlloc(nullptr, fileLength, MEM_COMMIT, PAGE_READWRITE);
 		if (buffer == nullptr) goto Cleanup;
 
 		// Read file
-		if (ReadFile(hFile, buffer, fileLength, nullptr, nullptr) != fileLength) goto Cleanup;
+		if (!ReadFile(hFile, buffer, fileLength, nullptr, nullptr)) goto Cleanup;
 		DecryptFileData(buffer, fileLength, key);
 
 		// Save file
@@ -198,6 +202,7 @@ void RpgMakerReader::DecryptNameV1(uint8_t *string, uint32_t length) {
 		key.int32 = key.int32 * 7 + 3;
 	}
 }
+
 void RpgMakerReader::DecryptNameV3(uint8_t *string, uint32_t length) {
 	for (uint32_t i = 0; i < length; i++) {
 		string[i] ^= key.uint8[i % 4];

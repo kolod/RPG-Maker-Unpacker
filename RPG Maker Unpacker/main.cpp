@@ -130,8 +130,8 @@ int main(int argc, wchar_t *argv[]) {
 
 	if (opt == 'e') {
 		RpgMakerReader *reader = new RpgMakerReader(optarg_w);
-		reader->Open();
 		reader->Extract();
+		delete reader;
 		return 0;
 	}
 
