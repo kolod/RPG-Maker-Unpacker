@@ -155,6 +155,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="getopt.h" />
+    <ClInclude Include="Reader.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="RpgMakerReader.h" />
     <ClInclude Include="shell.h" />
@@ -164,6 +165,7 @@
   <ItemGroup>
     <ClCompile Include="getopt.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Reader.cpp" />
     <ClCompile Include="RpgMakerReader.cpp" />
     <ClCompile Include="shell.cpp" />
     <ClCompile Include="stdafx.cpp">

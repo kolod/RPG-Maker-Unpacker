@@ -17,44 +17,29 @@
 #pragma once
 
 #include "stdafx.h"
-#include "Reader.h"
-
-typedef union {
-	int32_t int32;
-	uint32_t uint32;
-	uint8_t uint8[4];
-} key_t;
 
 typedef void(*ProgressCallback)(int64_t readed, int64_t all);
 
-class RpgMakerReader : public Reader {
+class Reader {
 public:
-	RpgMakerReader(LPWSTR path, ProgressCallback callback = nullptr);
+	Reader(LPWSTR path, ProgressCallback callback = nullptr);
 
-	bool Open();
-	void Extract();
+	virtual bool Open() = 0;
+	virtual void Extract() = 0;
 
-private:
-	key_t key;
+protected:
+	HANDLE hFile;
+	ProgressCallback pCallback;
+	LPCWSTR lpInputPath;
+	WCHAR szDir[MAX_PATH];
+	uint8_t *buffer;
+	size_t pageSize;
+	size_t reservedSpace;
+	size_t bufferSize;
 
-	LARGE_INTEGER size;
-	LARGE_INTEGER readed;
+	bool ReserveMemory();
+	bool FreeMemory();
+	bool CommitMemory(size_t size);
 
-	int GetVersion();
-
-	void DecryptIntV1(uint32_t *value);
-	void DecryptIntV3(uint32_t *value);
-
-	void DecryptNameV1(uint8_t *string, uint32_t length);
-	void DecryptNameV3(uint8_t *string, uint32_t length);
-
-	void DecryptFileData(uint8_t *data, uint32_t length, key_t fileKey);
-
-	void ExtractV1();
-	void ExtractV3();
-
-	void SaveFile(LPWSTR path, uint8_t *data, uint32_t length);
-
-	void UpdateProgress();
 };
 

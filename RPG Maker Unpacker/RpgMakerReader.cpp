@@ -18,13 +18,8 @@
 #include "RpgMakerReader.h"
 
 
-RpgMakerReader::RpgMakerReader(LPWSTR path, ProgressCallback callback) {
-	pCallback = callback;
-	lpInputPath = path;
-	GetDir(lpInputPath, szDir);
-}
-
-RpgMakerReader::~RpgMakerReader() {}
+RpgMakerReader::RpgMakerReader(LPWSTR path, ProgressCallback callback)
+	: Reader(path, callback) {}
 
 bool RpgMakerReader::Open() {
 	hFile = CreateFile(
@@ -44,12 +39,15 @@ bool RpgMakerReader::Open() {
 }
 
 void RpgMakerReader::Extract() {
-	if (Open()) switch (GetVersion()) {
-	case 1: ExtractV1(); break;
-	case 3: ExtractV3(); break;
-	}
+	if (ReserveMemory()) {
+		if (Open()) switch (GetVersion()) {
+		case 1: ExtractV1(); break;
+		case 3: ExtractV3(); break;
+		}
 
-	CloseHandle(hFile);
+		CloseHandle(hFile);
+		FreeMemory();
+	}
 }
 
 void RpgMakerReader::ExtractV1() {
@@ -57,25 +55,18 @@ void RpgMakerReader::ExtractV1() {
 	uint8_t fileName[MAX_PATH*3];
 	WCHAR szFileName[MAX_PATH];
 
-	// Reserve 1G of virtual space
-	size_t pageSize = GetLargePageMinimum();
-	size_t reservedSpace = (0x40000000 / pageSize) * pageSize;
-	uint8_t *buffer = (uint8_t*) VirtualAlloc(nullptr, reservedSpace, MEM_RESERVE, PAGE_NOACCESS);
-	if (buffer == nullptr) goto Cleanup;
-	size_t bufferSize = 0;
-
 	// Set file encryption key
 	key.uint32 = 0xDEADCAFE;
 
 	for (;;) {
 
 		// Get file name length
-		if (!ReadFile(hFile, &nameLength, 4, nullptr, nullptr)) goto Cleanup;
+		if (!ReadFile(hFile, &nameLength, 4, nullptr, nullptr)) return;
 		DecryptIntV1(&nameLength);
 
 		// Get file name
-		if (nameLength > sizeof(fileName)) goto Cleanup;
-		if (!ReadFile(hFile, &fileName, nameLength, nullptr, nullptr)) goto Cleanup;
+		if (nameLength > sizeof(fileName)) return;
+		if (!ReadFile(hFile, &fileName, nameLength, nullptr, nullptr)) return;
 		fileName[nameLength] = 0;
 		DecryptNameV1(fileName, nameLength);
 
@@ -83,19 +74,14 @@ void RpgMakerReader::ExtractV1() {
 		MultiByteToWideChar(CP_UTF8, 0, (LPCSTR) fileName, nameLength + 1, szFileName, sizeof(szFileName));
 
 		// Get file length
-		if (!ReadFile(hFile, &fileLength, 4, nullptr, nullptr)) goto Cleanup;
+		if (!ReadFile(hFile, &fileLength, 4, nullptr, nullptr)) return;
 		DecryptIntV1(&fileLength);
 
 		// Allocate memory
-		if (fileLength > bufferSize) {
-			size_t commitedSpace = ((fileLength + pageSize - 1) / pageSize) * pageSize;
-			buffer = (uint8_t*) VirtualAlloc(buffer, commitedSpace, MEM_COMMIT, PAGE_READWRITE);
-			if (buffer == nullptr) goto Cleanup;
-			bufferSize = commitedSpace;
-		}
+		CommitMemory(fileLength);
 
 		// Read file
-		if (!ReadFile(hFile, buffer, fileLength, nullptr, nullptr)) goto Cleanup;
+		if (!ReadFile(hFile, buffer, fileLength, nullptr, nullptr)) return;
 		DecryptFileData(buffer, fileLength, key);
 
 		// Save file
@@ -105,13 +91,6 @@ void RpgMakerReader::ExtractV1() {
 		readed.QuadPart += 4 * 2 + fileLength + nameLength;
 		UpdateProgress();
 	}
-
-Cleanup:
-
-	// Free memory
-	if (buffer != nullptr) VirtualFree(buffer, NULL, MEM_RELEASE);
-
-	ShowLastError();
 }
 
 void RpgMakerReader::ExtractV3() {
@@ -121,41 +100,34 @@ void RpgMakerReader::ExtractV3() {
 	WCHAR szFileName[MAX_PATH];
 	key_t fileKey;
 
-	// Reserve 1G of virtual space
-	size_t pageSize = GetLargePageMinimum();
-	size_t reservedSpace = (0x40000000 / pageSize) * pageSize;
-	uint8_t *buffer = (uint8_t*) VirtualAlloc(nullptr, reservedSpace, MEM_RESERVE, PAGE_NOACCESS);
-	if (buffer == nullptr) goto Cleanup;
-	size_t bufferSize = 0;
-
 	// Get file encryption key
-	if (!ReadFile(hFile, &key.uint32, 4, nullptr, nullptr)) goto Cleanup;
+	if (!ReadFile(hFile, &key.uint32, 4, nullptr, nullptr)) return;
 	key.int32 = key.int32 * 9 + 3;
 
 	for (;;) {
 
 		// Get file offset
-		if (!ReadFile(hFile, &fileOffset, 4, nullptr, nullptr)) goto Cleanup;
+		if (!ReadFile(hFile, &fileOffset, 4, nullptr, nullptr)) return;
 		DecryptIntV3(&fileOffset);
 
 		// Get file length
-		if (!ReadFile(hFile, &fileLength, 4, nullptr, nullptr)) goto Cleanup;
+		if (!ReadFile(hFile, &fileLength, 4, nullptr, nullptr)) return;
 		DecryptIntV3(&fileLength);
 
 		// Get file key
-		if (!ReadFile(hFile, &fileKey.uint32, 4, nullptr, nullptr)) goto Cleanup;
+		if (!ReadFile(hFile, &fileKey.uint32, 4, nullptr, nullptr)) return;
 		DecryptIntV3(&fileKey.uint32);
 
 		// Get file name length
-		if (!ReadFile(hFile, &nameLength, 4, nullptr, nullptr)) goto Cleanup;
+		if (!ReadFile(hFile, &nameLength, 4, nullptr, nullptr)) return;
 		DecryptIntV3(&nameLength);
 
 		// Normal exit from loop
-		if (fileOffset == 0) goto Cleanup;
+		if (fileOffset == 0) return;
 		
 		// Get file name
-		if (nameLength > sizeof(fileName)) goto Cleanup;
-		if (!ReadFile(hFile, &fileName, nameLength, nullptr, nullptr)) goto Cleanup;
+		if (nameLength > sizeof(fileName)) return;
+		if (!ReadFile(hFile, &fileName, nameLength, nullptr, nullptr)) return;
 		fileName[nameLength] = 0;
 		DecryptNameV3(fileName, nameLength);
 
@@ -163,19 +135,14 @@ void RpgMakerReader::ExtractV3() {
 		MultiByteToWideChar(CP_UTF8, 0, (LPCSTR) fileName, nameLength + 1, szFileName, sizeof(szFileName));
 
 		// Allocate memory
-		if (fileLength > bufferSize) {
-			size_t commitedSpace = ((fileLength + pageSize - 1) / pageSize) * pageSize;
-			buffer = (uint8_t*) VirtualAlloc(buffer, commitedSpace, MEM_COMMIT, PAGE_READWRITE);
-			if (buffer == nullptr) goto Cleanup;
-			bufferSize = commitedSpace;
-		}
+		CommitMemory(fileLength);
 
 		// Save file position pointer
 		SetFilePointerEx(hFile, {0, 0}, &currentPointer, FILE_CURRENT);
 
 		// Read file
 		SetFilePointer(hFile, fileOffset, 0, FILE_BEGIN);
-		if (!ReadFile(hFile, buffer, fileLength, nullptr, nullptr)) goto Cleanup;
+		if (!ReadFile(hFile, buffer, fileLength, nullptr, nullptr)) return;
 		DecryptFileData(buffer, fileLength, fileKey);
 
 		// Save file
@@ -188,12 +155,6 @@ void RpgMakerReader::ExtractV3() {
 		readed.QuadPart += 4 * 4 + fileLength + nameLength;
 		UpdateProgress();
 	}
-
-Cleanup:
-	// Free memory
-	if (buffer != nullptr) VirtualFree(buffer, NULL, MEM_RELEASE);
-
-	ShowLastError();
 }
 
 int RpgMakerReader::GetVersion() {
