@@ -77,6 +77,8 @@ void RegisterShellExtention() {
 				RegCloseKey(hKeyIcon);
 				RegCloseKey(hKeyRoot);	
 		}
+
+		Info(L"Программа добавлена в меню проводника.");
 	} catch (DWORD ex) {
 		UNREFERENCED_PARAMETER(ex);
 		ShowLastError();
@@ -88,6 +90,7 @@ void UnRegisterShellExtention() {
 		for (int i = 0; i < fileExtentionsCount; i++) {
 			RegDeleteKeyRecurse(HKEY_CLASSES_ROOT, fileExtentions[i]);
 		}
+		Info(L"Программа удалена из меню проводника.");
 	} catch (DWORD ex) {
 		UNREFERENCED_PARAMETER(ex);
 		ShowLastError();

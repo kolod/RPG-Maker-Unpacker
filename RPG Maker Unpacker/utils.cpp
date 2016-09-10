@@ -386,6 +386,10 @@ void Alert(LPWSTR text) {
 	MessageBoxW(nullptr, text, (LPCWSTR) L"Alert!", MB_ICONWARNING | MB_OK);
 }
 
+void Info(LPWSTR text) {
+	MessageBoxW(nullptr, text, (LPCWSTR) L"Info!", MB_ICONINFORMATION | MB_OK);
+}
+
 void ShowLastError() {
 	WCHAR buffer[256];
 	FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), buffer, 256, NULL);

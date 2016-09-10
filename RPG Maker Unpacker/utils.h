@@ -8,6 +8,7 @@ BOOL IsProcessElevated();
 DWORD GetProcessIntegrityLevel();
 
 void Alert(LPWSTR text);
+void Info(LPWSTR text);
 void ShowLastError();
 
 bool FolderExists(LPCWSTR folderName);

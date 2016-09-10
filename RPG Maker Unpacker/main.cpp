@@ -14,6 +14,7 @@ WCHAR szRegister[MAX_LOADSTRING];               // The register button text
 WCHAR szUnRegister[MAX_LOADSTRING];             // The unregister button text
 BOOL fIsElevated = true;                        //
 HWND hWnd;                                      // The main window handle
+HWND hProgressBar;                              // The progress bar
 
 static const struct option_w longOptions[] {
 	{L"register", no_argument, nullptr, L'r'},
@@ -93,48 +94,7 @@ ATOM MyRegisterClass (HINSTANCE hInstance) {
 	return RegisterClassExW (&wcex);
 }
 
-int main(int argc, wchar_t *argv[]) {
-
-	// Get the process elevation information.
-	if (IsWindowsVistaOrGreater()) {
-		fIsElevated = IsProcessElevated();
-	}
-
-	// Initialize global strings
-	LoadStringW(hInst, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-	LoadStringW(hInst, IDS_WINDOW_CLASS, szWindowClass, MAX_LOADSTRING);
-	LoadStringW(hInst, IDS_REGISTER, szRegister, MAX_LOADSTRING);
-	LoadStringW(hInst, IDS_UNREGISTER, szUnRegister, MAX_LOADSTRING);
-
-	INITCOMMONCONTROLSEX initControl;
-	initControl.dwSize = sizeof(INITCOMMONCONTROLSEX);
-	initControl.dwICC = ICC_STANDARD_CLASSES;
-	InitCommonControlsEx(&initControl);
-	
-	int index = 0;
-	int opt = getopt_long_w(argc, argv, L"rue:h", longOptions, &index);
-
-	if (opt == 'r') {
-		RegisterShellExtention();
-		return 0;
-	}
-
-	if (opt == 'u') {
-		UnRegisterShellExtention();
-		return 0;
-	}
-
-	if (opt == 'h') {
-		return 0;
-	}
-
-	if (opt == 'e') {
-		RpgMakerReader *reader = new RpgMakerReader(optarg_w);
-		reader->Extract();
-		delete reader;
-		return 0;
-	}
-
+int CreateMainWindow() {
 	// Register main window class
 	MyRegisterClass(hInst);
 
@@ -162,9 +122,9 @@ int main(int argc, wchar_t *argv[]) {
 
 	HWND hRegisterButton = CreateWindowExW(
 		0,
-		L"BUTTON", 
+		L"BUTTON",
 		szRegister,
-		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, 
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
 		5, 5, 300, 30, hWnd, (HMENU) ID_REGISTER, hInst, nullptr
 	);
 
@@ -194,6 +154,108 @@ int main(int argc, wchar_t *argv[]) {
 
 	return (int) msg.wParam;
 }
+
+void UpdateProgress(int64_t readed, int64_t all) {
+	SendMessage(hProgressBar, PBM_SETPOS, (WPARAM) readed * 1000 / all, 0);
+
+	MSG msg;
+	while (PeekMessage(&msg, hWnd, 0, 0, PM_REMOVE)) {
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+}
+
+int CreateProgressWindow(LPCWSTR archive) {
+
+	// Register main window class
+	MyRegisterClass(hInst);
+
+	// Calculate position and size of main window
+	int width = 310;
+	int height = 40;
+	RECT rect;
+	GetClientRect(GetDesktopWindow(), &rect);
+	rect.left = rect.right / 2 - width / 2;
+	rect.right = rect.left + width;
+	rect.top = rect.bottom / 2 - height / 2;
+	rect.bottom = rect.top + height;
+	AdjustWindowRectEx(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0);
+	width = rect.right - rect.left;
+	height = rect.bottom - rect.top;
+
+	hWnd = CreateWindowExW(
+		0,
+		szWindowClass,
+		szTitle,
+		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+		rect.left, rect.top, width, height,
+		nullptr, nullptr, hInst, nullptr);
+	if (!hWnd) return -1;
+
+	hProgressBar = CreateWindowExW(
+		0,
+		PROGRESS_CLASS,
+		NULL,
+		WS_VISIBLE | WS_CHILD,
+		5, 5, 300, 30, hWnd, (HMENU) ID_PROGRESS, hInst, nullptr
+	);
+
+	SendMessage(hProgressBar, PBM_SETRANGE, 0, (LPARAM) MAKELONG(0, 1000));
+	SendMessage(hProgressBar, PBM_SETPOS, (WPARAM) 0, 0);
+	UpdateWindow(hProgressBar);
+
+	ShowWindow(hWnd, SW_SHOW);
+	UpdateWindow(hWnd);
+
+	RpgMakerReader *reader = new RpgMakerReader(optarg_w, &UpdateProgress);
+	reader->Extract();
+	delete reader;
+
+	return 0;
+}
+
+int main(int argc, wchar_t *argv[]) {
+
+	// Get the process elevation information.
+	if (IsWindowsVistaOrGreater()) {
+		fIsElevated = IsProcessElevated();
+	}
+
+	// Initialize global strings
+	LoadStringW(hInst, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+	LoadStringW(hInst, IDS_WINDOW_CLASS, szWindowClass, MAX_LOADSTRING);
+	LoadStringW(hInst, IDS_REGISTER, szRegister, MAX_LOADSTRING);
+	LoadStringW(hInst, IDS_UNREGISTER, szUnRegister, MAX_LOADSTRING);
+
+	INITCOMMONCONTROLSEX initControl;
+	initControl.dwSize = sizeof(INITCOMMONCONTROLSEX);
+	initControl.dwICC = ICC_STANDARD_CLASSES | ICC_PROGRESS_CLASS;
+	InitCommonControlsEx(&initControl);
+
+	if (argc <= 1) return CreateMainWindow();
+
+	int index = 0;
+	int opt = getopt_long_w(argc, argv, L"rue:h", longOptions, &index);
+
+	switch (opt) {
+	case 'r':
+		RegisterShellExtention();
+		break;
+
+	case 'u':
+		UnRegisterShellExtention();
+		break;
+
+	case'h':
+		break;
+
+	case 'e':
+		return CreateProgressWindow(optarg_w);
+	}
+
+	return 0;
+}
+
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
 	UNREFERENCED_PARAMETER(nCmdShow);
