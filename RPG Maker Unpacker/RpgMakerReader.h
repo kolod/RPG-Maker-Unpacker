@@ -19,26 +19,13 @@
 #include "stdafx.h"
 #include "Reader.h"
 
-typedef union {
-	int32_t int32;
-	uint32_t uint32;
-	uint8_t uint8[4];
-} key_t;
-
-typedef void(*ProgressCallback)(int64_t readed, int64_t all);
-
 class RpgMakerReader : public Reader {
 public:
 	RpgMakerReader(LPWSTR path, ProgressCallback callback = nullptr);
-
-	bool Open();
 	void Extract();
 
 private:
 	key_t key;
-
-	LARGE_INTEGER size;
-	LARGE_INTEGER readed;
 
 	int GetVersion();
 
@@ -52,9 +39,5 @@ private:
 
 	void ExtractV1();
 	void ExtractV3();
-
-	void SaveFile(LPWSTR path, uint8_t *data, uint32_t length);
-
-	void UpdateProgress();
 };
 

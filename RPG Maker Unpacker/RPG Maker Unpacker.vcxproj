@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\packages\fix8.dependencies.getopt.1.0.20151130.1\build\native\fix8.dependencies.getopt.props" Condition="Exists('..\packages\fix8.dependencies.getopt.1.0.20151130.1\build\native\fix8.dependencies.getopt.props')" />
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -154,8 +155,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="getopt.h" />
     <ClInclude Include="Reader.h" />
+    <ClInclude Include="RenPyReader.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="RpgMakerReader.h" />
     <ClInclude Include="shell.h" />
@@ -163,9 +164,9 @@
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="getopt.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Reader.cpp" />
+    <ClCompile Include="RenPyReader.cpp" />
     <ClCompile Include="RpgMakerReader.cpp" />
     <ClCompile Include="shell.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -186,8 +187,21 @@
     <None Include="..\LICENSE" />
     <None Include="..\README.md" />
     <None Include=".gitignore" />
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\packages\fix8.dependencies.getopt.1.0.20151130.1\build\native\fix8.dependencies.getopt.targets" Condition="Exists('..\packages\fix8.dependencies.getopt.1.0.20151130.1\build\native\fix8.dependencies.getopt.targets')" />
+    <Import Project="..\packages\zlib.v120.windesktop.msvcstl.dyn.rt-dyn.1.2.8.8\build\native\zlib.v120.windesktop.msvcstl.dyn.rt-dyn.targets" Condition="Exists('..\packages\zlib.v120.windesktop.msvcstl.dyn.rt-dyn.1.2.8.8\build\native\zlib.v120.windesktop.msvcstl.dyn.rt-dyn.targets')" />
+    <Import Project="..\packages\zlib.v140.windesktop.msvcstl.dyn.rt-dyn.1.2.8.8\build\native\zlib.v140.windesktop.msvcstl.dyn.rt-dyn.targets" Condition="Exists('..\packages\zlib.v140.windesktop.msvcstl.dyn.rt-dyn.1.2.8.8\build\native\zlib.v140.windesktop.msvcstl.dyn.rt-dyn.targets')" />
   </ImportGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\fix8.dependencies.getopt.1.0.20151130.1\build\native\fix8.dependencies.getopt.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\fix8.dependencies.getopt.1.0.20151130.1\build\native\fix8.dependencies.getopt.props'))" />
+    <Error Condition="!Exists('..\packages\fix8.dependencies.getopt.1.0.20151130.1\build\native\fix8.dependencies.getopt.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\fix8.dependencies.getopt.1.0.20151130.1\build\native\fix8.dependencies.getopt.targets'))" />
+    <Error Condition="!Exists('..\packages\zlib.v120.windesktop.msvcstl.dyn.rt-dyn.1.2.8.8\build\native\zlib.v120.windesktop.msvcstl.dyn.rt-dyn.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\zlib.v120.windesktop.msvcstl.dyn.rt-dyn.1.2.8.8\build\native\zlib.v120.windesktop.msvcstl.dyn.rt-dyn.targets'))" />
+    <Error Condition="!Exists('..\packages\zlib.v140.windesktop.msvcstl.dyn.rt-dyn.1.2.8.8\build\native\zlib.v140.windesktop.msvcstl.dyn.rt-dyn.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\zlib.v140.windesktop.msvcstl.dyn.rt-dyn.1.2.8.8\build\native\zlib.v140.windesktop.msvcstl.dyn.rt-dyn.targets'))" />
+  </Target>
 </Project>

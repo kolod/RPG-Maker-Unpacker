@@ -18,10 +18,17 @@
 
 #define MAX_COMMAND (MAX_PATH + 50)
 
-static LPCWCHAR fileExtentions[] = {
-	L".rgssad",
-	L".rgss2a",
-	L".rgss3a"
+static LPCWCHAR gameEngine[] = {
+	L"rpgmaker",
+	L"renpy"
+};
+
+static LPCWCHAR fileExtentions[5][2] = {
+	{L".rgssad", gameEngine[0]},
+	{L".rgss2a", gameEngine[0]},
+	{L".rgss3a", gameEngine[0]},
+	{L".rpa", gameEngine[1]},
+	{L".rpi", gameEngine[1]},
 };
 
 static const int fileExtentionsCount = sizeof(fileExtentions) / sizeof(fileExtentions[0]);
@@ -64,7 +71,7 @@ BOOL RegDeleteKeyRecurse(HKEY hKeyRoot, LPCWCHAR lpSubKey) {
 	return (RegDeleteKey(hKeyRoot, lpSubKey) == ERROR_SUCCESS) ? TRUE : FALSE;
 }
 
-void RegisterShellExtention() {
+int RegisterShellExtention() {
 	WCHAR szExecutablePath[MAX_PATH];
 	WCHAR szCommand[MAX_COMMAND];
 	WCHAR szIconPath[MAX_COMMAND];
@@ -73,42 +80,49 @@ void RegisterShellExtention() {
 
 	try {
 		GetModuleFileNameW(GetModuleHandle(nullptr), szExecutablePath, sizeof(szExecutablePath));   // Get executaple path
-		_snwprintf(szCommand, MAX_COMMAND, L"\"%s\" --extract \"%%1\"", szExecutablePath);          // Get extract command
 		_snwprintf(szIconPath, MAX_COMMAND, L"\"%s\",0", szExecutablePath);                         // Get image path
 
 		for (int i = 0; i < fileExtentionsCount; i++) {
-				HKEY hKeyRoot, hKeyIcon, hKeyShell, hKeyUnpuck, hKeyCommand;
-				RegCreateKeyExW(HKEY_CLASSES_ROOT, fileExtentions[i], 0L, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, nullptr, &hKeyRoot, nullptr);
-				RegSetKeyValueW(hKeyRoot, nullptr, nullptr, REG_SZ, szFileTypeName, sizeof(szFileTypeName));
-				RegCreateKeyExW(hKeyRoot, L"DefaultIcon", 0, 0, 0, KEY_ALL_ACCESS, nullptr, &hKeyIcon, nullptr);
-				RegSetKeyValueW(hKeyIcon, nullptr, nullptr, REG_SZ, szIconPath, sizeof(szIconPath));
-				RegCreateKeyExW(hKeyRoot, L"shell", 0, 0, 0, KEY_ALL_ACCESS, nullptr, &hKeyShell, nullptr);
-				RegCreateKeyExW(hKeyShell, L"Extract", 0, 0, 0, KEY_ALL_ACCESS, nullptr, &hKeyUnpuck, nullptr);
-				RegSetKeyValueW(hKeyUnpuck, nullptr, nullptr, REG_SZ, szMenuText, sizeof(szMenuText));
-				RegCreateKeyExW(hKeyUnpuck, L"command", 0, 0, 0, KEY_ALL_ACCESS, nullptr, &hKeyCommand, nullptr);
-				RegSetKeyValueW(hKeyCommand, nullptr, nullptr, REG_SZ, szCommand, sizeof(szCommand));
-				RegCloseKey(hKeyCommand);
-				RegCloseKey(hKeyUnpuck);
-				RegCloseKey(hKeyShell);
-				RegCloseKey(hKeyIcon);
-				RegCloseKey(hKeyRoot);	
+			// Get extract command
+			_snwprintf(szCommand, MAX_COMMAND, L"\"%s\" --%s --extract \"%%1\"", szExecutablePath, fileExtentions[i][1]);       
+
+			// Create registry keys
+			HKEY hKeyRoot, hKeyIcon, hKeyShell, hKeyUnpuck, hKeyCommand;
+			RegCreateKeyExW(HKEY_CLASSES_ROOT, fileExtentions[i][0], 0L, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, nullptr, &hKeyRoot, nullptr);
+			RegSetKeyValueW(hKeyRoot, nullptr, nullptr, REG_SZ, szFileTypeName, sizeof(szFileTypeName));
+			RegCreateKeyExW(hKeyRoot, L"DefaultIcon", 0, 0, 0, KEY_ALL_ACCESS, nullptr, &hKeyIcon, nullptr);
+			RegSetKeyValueW(hKeyIcon, nullptr, nullptr, REG_SZ, szIconPath, sizeof(szIconPath));
+			RegCreateKeyExW(hKeyRoot, L"shell", 0, 0, 0, KEY_ALL_ACCESS, nullptr, &hKeyShell, nullptr);
+			RegCreateKeyExW(hKeyShell, L"Extract", 0, 0, 0, KEY_ALL_ACCESS, nullptr, &hKeyUnpuck, nullptr);
+			RegSetKeyValueW(hKeyUnpuck, nullptr, nullptr, REG_SZ, szMenuText, sizeof(szMenuText));
+			RegCreateKeyExW(hKeyUnpuck, L"command", 0, 0, 0, KEY_ALL_ACCESS, nullptr, &hKeyCommand, nullptr);
+			RegSetKeyValueW(hKeyCommand, nullptr, nullptr, REG_SZ, szCommand, sizeof(szCommand));
+			RegCloseKey(hKeyCommand);
+			RegCloseKey(hKeyUnpuck);
+			RegCloseKey(hKeyShell);
+			RegCloseKey(hKeyIcon);
+			RegCloseKey(hKeyRoot);	
 		}
 
 		Info(L"Программа добавлена в меню проводника.");
 	} catch (DWORD ex) {
-		UNREFERENCED_PARAMETER(ex);
 		ShowLastError();
+		return ex;
 	}
+
+	return 0;
 }
 
-void UnRegisterShellExtention() {
+int UnRegisterShellExtention() {
 	try {
 		for (int i = 0; i < fileExtentionsCount; i++) {
-			RegDeleteKeyRecurse(HKEY_CLASSES_ROOT, fileExtentions[i]);
+			RegDeleteKeyRecurse(HKEY_CLASSES_ROOT, fileExtentions[i][0]);
 		}
 		Info(L"Программа удалена из меню проводника.");
 	} catch (DWORD ex) {
-		UNREFERENCED_PARAMETER(ex);
 		ShowLastError();
+		return ex;
 	}
+
+	return 0;
 }

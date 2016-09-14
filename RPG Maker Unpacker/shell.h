@@ -16,5 +16,5 @@
 
 #pragma once
 
-void RegisterShellExtention();
-void UnRegisterShellExtention();
+int RegisterShellExtention();
+int UnRegisterShellExtention();

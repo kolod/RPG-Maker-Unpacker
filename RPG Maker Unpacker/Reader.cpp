@@ -17,7 +17,6 @@
 #include "stdafx.h"
 #include "Reader.h"
 
-
 Reader::Reader(LPWSTR path, ProgressCallback callback) {
 	buffer = nullptr;
 	bufferSize = 0;
@@ -28,6 +27,22 @@ Reader::Reader(LPWSTR path, ProgressCallback callback) {
 	GetDir(lpInputPath, szDir);
 }
 
+bool Reader::Open() {
+	hFile = CreateFile(
+		lpInputPath,
+		GENERIC_READ,
+		FILE_SHARE_READ,
+		NULL,
+		OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL,
+		NULL
+	);
+
+	// Get size of the rpg maker archive
+	if (!GetFileSizeEx(hFile, &size)) size.QuadPart = 0;
+
+	return hFile != INVALID_HANDLE_VALUE;
+}
 
 // Reserve 1G of virtual space
 bool Reader::ReserveMemory() {
@@ -58,4 +73,26 @@ bool Reader::CommitMemory(size_t size) {
 	}
 
 	return buffer != nullptr;
+}
+
+void Reader::UpdateProgress() {
+	if (pCallback != nullptr) {
+		pCallback(readed.QuadPart, size.QuadPart);
+	}
+}
+
+void Reader::SaveFile(LPWSTR path, uint8_t *data, uint32_t length) {
+	WCHAR szFullPath[MAX_PATH];
+	WCHAR szDirectoryPath[MAX_PATH];
+
+	_snwprintf(szFullPath, MAX_PATH, L"%s\\Extract\\%s", szDir, path);
+	GetDir(szFullPath, szDirectoryPath);
+
+	if (CreateDirectoryRecursively(szDirectoryPath)) {
+		HANDLE hOutputFile = CreateFileW(szFullPath, GENERIC_WRITE, NULL, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+		WriteFile(hOutputFile, data, length, nullptr, nullptr);
+		CloseHandle(hOutputFile);
+	} else {
+		ShowLastError();
+	}
 }

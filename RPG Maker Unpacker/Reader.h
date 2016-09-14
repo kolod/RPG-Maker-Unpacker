@@ -18,13 +18,17 @@
 
 #include "stdafx.h"
 
+typedef union {
+	int32_t int32;
+	uint32_t uint32;
+	uint8_t uint8[4];
+} key_t;
+
 typedef void(*ProgressCallback)(int64_t readed, int64_t all);
 
 class Reader {
 public:
 	Reader(LPWSTR path, ProgressCallback callback = nullptr);
-
-	virtual bool Open() = 0;
 	virtual void Extract() = 0;
 
 protected:
@@ -36,10 +40,14 @@ protected:
 	size_t pageSize;
 	size_t reservedSpace;
 	size_t bufferSize;
+	LARGE_INTEGER size;
+	LARGE_INTEGER readed;
 
+	bool Open();
 	bool ReserveMemory();
 	bool FreeMemory();
 	bool CommitMemory(size_t size);
-
+	void UpdateProgress();
+	void SaveFile(LPWSTR path, uint8_t *data, uint32_t length);
 };
 

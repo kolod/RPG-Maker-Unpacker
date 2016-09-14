@@ -21,23 +21,6 @@
 RpgMakerReader::RpgMakerReader(LPWSTR path, ProgressCallback callback)
 	: Reader(path, callback) {}
 
-bool RpgMakerReader::Open() {
-	hFile = CreateFile(
-		lpInputPath,
-		GENERIC_READ,
-		FILE_SHARE_READ,
-		NULL,
-		OPEN_EXISTING,
-		FILE_ATTRIBUTE_NORMAL,
-		NULL
-	);
-
-	// Get size of the rpg maker archive
-	if (!GetFileSizeEx(hFile, &size)) size.QuadPart = 0;
-	
-	return hFile != INVALID_HANDLE_VALUE;
-}
-
 void RpgMakerReader::Extract() {
 	if (ReserveMemory()) {
 		if (Open()) switch (GetVersion()) {
@@ -163,6 +146,7 @@ int RpgMakerReader::GetVersion() {
 	try {
 		// Reset file position
 		SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
+		// Read magic
 		if (ReadFile(hFile, magic, 8, nullptr, nullptr)) {
 			readed.QuadPart = 8;
 			if (strncmp(magic, "RGSSAD", 6) == 0) {
@@ -175,22 +159,6 @@ int RpgMakerReader::GetVersion() {
 	}
 
 	return 0;
-}
-
-void RpgMakerReader::SaveFile(LPWSTR path, uint8_t *data, uint32_t length) {
-	WCHAR szFullPath[MAX_PATH];
-	WCHAR szDirectoryPath[MAX_PATH];
-
-	_snwprintf(szFullPath, MAX_PATH, L"%s\\Extract\\%s", szDir, path);
-	GetDir(szFullPath, szDirectoryPath);
-
-	if (CreateDirectoryRecursively(szDirectoryPath)) {
-		HANDLE hOutputFile = CreateFileW(szFullPath, GENERIC_WRITE, NULL, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-		WriteFile(hOutputFile, data, length, nullptr, nullptr);
-		CloseHandle(hOutputFile);
-	} else {
-		ShowLastError();
-	}
 }
 
 void RpgMakerReader::DecryptIntV1(uint32_t *value) {
@@ -224,11 +192,5 @@ void RpgMakerReader::DecryptFileData(uint8_t *data, uint32_t length, key_t fileK
 
 	for (i = i * 4; i < length; i++) {
 		data[i] ^= fileKey.uint8[i % 4];
-	}
-}
-
-void RpgMakerReader::UpdateProgress() {
-	if (pCallback != nullptr) {
-		pCallback(readed.QuadPart, size.QuadPart);
 	}
 }

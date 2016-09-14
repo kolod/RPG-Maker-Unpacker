@@ -3,6 +3,7 @@
 #include "shell.h"
 #include "resource.h"
 #include "RpgMakerReader.h"
+#include "RenPyReader.h"
 
 #define MAX_LOADSTRING 100
 
@@ -17,11 +18,33 @@ HWND hWnd;                                      // The main window handle
 HWND hProgressBar;                              // The progress bar
 
 static const struct option_w longOptions[] {
+	{L"rpgmaker", no_argument, nullptr, L'0'},
+	{L"renpy", no_argument, nullptr, L'1'},
 	{L"register", no_argument, nullptr, L'r'},
 	{L"unregister", no_argument, nullptr, L'u'},
 	{L"extract", required_argument, nullptr, L'e'},
 	{L"help", no_argument, nullptr, L'h'}
 };
+
+enum class Engine {
+	None,
+	RpgMaker,
+	RenPy
+};
+
+enum class Action {
+	None,
+	Register,
+	UnRegister,
+	Extract,
+	Help
+};
+
+typedef struct {
+	Action action;
+	Engine engine;
+	LPWSTR path;
+} Options;
 
 // Launch itself as administrator.
 void Elevate(LPCWCHAR command) {
@@ -165,7 +188,7 @@ void UpdateProgress(int64_t readed, int64_t all) {
 	}
 }
 
-int CreateProgressWindow(LPCWSTR archive) {
+int CreateProgressWindow(Options options) {
 
 	// Register main window class
 	MyRegisterClass(hInst);
@@ -206,8 +229,21 @@ int CreateProgressWindow(LPCWSTR archive) {
 
 	ShowWindow(hWnd, SW_SHOW);
 	UpdateWindow(hWnd);
+	
+	Reader *reader = nullptr;
+	switch (options.engine) {
+	case Engine::None:
+		return 1;
 
-	RpgMakerReader *reader = new RpgMakerReader(optarg_w, &UpdateProgress);
+	case Engine::RpgMaker:
+		reader = new RpgMakerReader(options.path, &UpdateProgress);
+		break;
+
+	case Engine::RenPy:
+		reader = new RenPyReader(options.path, &UpdateProgress);
+		break;
+	}
+
 	reader->Extract();
 	delete reader;
 
@@ -235,22 +271,51 @@ int main(int argc, wchar_t *argv[]) {
 	if (argc <= 1) return CreateMainWindow();
 
 	int index = 0;
-	int opt = getopt_long_w(argc, argv, L"rue:h", longOptions, &index);
+	Options options = {Action::None, Engine::None};
 
-	switch (opt) {
-	case 'r':
-		RegisterShellExtention();
+	for (;;) {
+		int opt = getopt_long_w(argc, argv, L"rue:h", longOptions, &index);
+
+		if (opt == 'r') {
+			options.action = Action::Register;
+			break;
+		}
+
+		else if (opt == 'u') {
+			options.action = Action::UnRegister;
+			break;
+		}
+
+		else if (opt == 'h') {
+			options.action = Action::Help;
+			break;
+		}
+
+		else if (opt == 'e') {
+			options.action = Action::Extract;
+			options.path = optarg_w;
+		}
+
+		else if (opt == L'0') {
+			options.engine = Engine::RpgMaker;
+		}
+
+		else if (opt == L'1') {
+			options.engine = Engine::RenPy;
+		}
+
+		else {
+			break;
+		}
+	}
+
+	switch (options.action) {
+	case Action::Register:   return RegisterShellExtention();
+	case Action::UnRegister: return UnRegisterShellExtention();
+	case Action::Extract:    return CreateProgressWindow(options);
+
+	default:
 		break;
-
-	case 'u':
-		UnRegisterShellExtention();
-		break;
-
-	case'h':
-		break;
-
-	case 'e':
-		return CreateProgressWindow(optarg_w);
 	}
 
 	return 0;

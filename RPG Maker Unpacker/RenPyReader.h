@@ -16,25 +16,29 @@
 
 #pragma once
 
-#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
-//#define STATIC_GETOPT
-#define _CRT_SECURE_NO_WARNINGS
+#include "stdafx.h"
+#include "Reader.h"
 
-// Windows Header Files:
-#include <windows.h>
-#include <CommCtrl.h>
-#include <VersionHelpers.h>
-#include <Shellapi.h>
+class RenPyReader:
+	public Reader {
+public:
+	RenPyReader(LPWSTR path, ProgressCallback callback = nullptr);
+	void Extract();
 
-// C RunTime Header Files
-#include <stdint.h>
-#include <stdlib.h>
-#include <malloc.h>
-#include <memory.h>
-#include <tchar.h>
-#include <stdio.h>
+private:
+	key_t key;
 
-// User headers
-#include "utils.h"
+	int GetVersion();
 
+	bool ReadHeader(int64_t *offset, uint32_t *key);
+	bool NextBinput(LPSTR *index, LPSTR end);
+	bool NextString(LPSTR *index, LPSTR end, LPWSTR name, size_t size);
+	bool NextInteger(LPSTR *index, LPSTR end, uint32_t *value);
+
+	void ExtractV1();
+	void ExtractV2();
+	void ExtractV3();
+
+
+};
 
