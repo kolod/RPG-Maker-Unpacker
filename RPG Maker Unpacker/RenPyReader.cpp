@@ -70,6 +70,7 @@ void RenPyReader::ExtractV3() {
 	LARGE_INTEGER fileSize; 
 	LARGE_INTEGER compressedIndexSize;
 	LARGE_INTEGER uncompressedIndexSize;
+	LARGE_INTEGER filePointer;
 
 	UCHAR *compressedIndex;
 	UCHAR *uncompressedIndex;
@@ -79,9 +80,8 @@ void RenPyReader::ExtractV3() {
 	uint32_t offset;
 	uint32_t length;
 
+	// Get index offset & decryption key
 	if (!ReadHeader(&indexPointer.QuadPart, &key.uint32)) return;
-
-	// Get decryption key
 
 	// Move file pointer to begining of archive index
 	if (!SetFilePointerEx(hFile, indexPointer, nullptr, FILE_BEGIN)) return;
@@ -104,21 +104,25 @@ void RenPyReader::ExtractV3() {
 	// Decompress indexes
 	uncompress(uncompressedIndex, (uLongf*) &uncompressedIndexSize.QuadPart, compressedIndex, compressedIndexSize.LowPart);
 
+	SaveFile(L"index.bin", uncompressedIndex, uncompressedIndexSize.LowPart);
+
 	LPSTR position = (LPSTR) uncompressedIndex;
 	LPSTR end = position + uncompressedIndexSize.LowPart - 1;
 
 	while (position < end) {
-		if (!NextBinput(&position, end)) return;
-		if (!NextString(&position, end, szFileName, MAX_PATH)) return;
-		if (!NextBinput(&position, end)) return;
-		if (!NextInteger(&position, end, &offset)) return;
-		if (!NextInteger(&position, end, &length)) return;
+		if (!NextBinput(&position, end)) break;
+		if (!NextString(&position, end, szFileName, MAX_PATH)) break;
+		if (!NextBinput(&position, end)) break;
+		if (!NextInteger(&position, end, &offset)) break;
+		if (!NextInteger(&position, end, &length)) break;
 		// TODO: Add check for prefix
+
+		filePointer.QuadPart = offset;
 				
-		if (!CommitMemory(length)) return;                               // Allocate memory		
-		SetFilePointer(hFile, offset, 0, FILE_BEGIN);                    // Set file pointer
-		if (!ReadFile(hFile, buffer, length, nullptr, nullptr)) return;  // Read file		
-		SaveFile(szFileName, buffer, length);                            // Save file
+		if (!CommitMemory(length)) break;                                        // Allocate memory		
+		if (!SetFilePointerEx(hFile, filePointer, nullptr, FILE_BEGIN)) break;   // Set file pointer
+		if (!ReadFile(hFile, buffer, length, nullptr, nullptr)) break;           // Read file		
+		SaveFile(szFileName, buffer, length);                                    // Save file
 
 		// Update progress
 		readed.QuadPart += length;
@@ -156,7 +160,14 @@ bool RenPyReader::NextString(LPSTR *index, LPSTR end, LPWSTR name, size_t size) 
 	if (charactersWritten == 0) return false;
 
 	// Move index pointer
-	*index = *index + encodedLength;
+	*index = *index + encodedLength - 1;
+
+	// Find end of string
+	// FIXME: I don't know why it works, but it works. Errors may occur, if the prefix is not empty.
+	while (**index != ']') {
+		*index = *index + 1;
+		if (*index > end) return false;
+	}
 
 	// Append NULL
 	name[charactersWritten] = 0;
