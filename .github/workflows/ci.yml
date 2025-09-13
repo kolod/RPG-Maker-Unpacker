@@ -1,0 +1,181 @@
+name: CI
+
+on:
+  push:
+    branches: 
+    - main
+    - develop
+    paths-ignore:
+    - 'docs/**'
+    - '*.md'
+    - '.github/**'
+    - '.gitignore'
+    - '.gitattributes'
+    - 'LICENSE'
+  pull_request:
+    branches: 
+    - main
+    paths-ignore:
+    - 'docs/**'
+    - '*.md'
+    - '.github/**'
+    - '.gitignore'
+    - '.gitattributes'
+    - 'LICENSE'
+  release:
+    types: [ published ]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2019, windows-2022]
+        platform: [x64, Win32]
+        configuration: [Debug, Release]
+        
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1.3
+
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v1.2.0
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.config') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore NuGet packages
+      run: nuget restore "RPG Maker Unpacker.sln"
+
+    - name: Build solution
+      run: |
+        msbuild "RPG Maker Unpacker.sln" `
+          /p:Configuration=${{ matrix.configuration }} `
+          /p:Platform=${{ matrix.platform }} `
+          /p:UseEnv=true `
+          /m `
+          /verbosity:minimal
+
+    - name: Upload build artifacts
+      if: matrix.configuration == 'Release'
+      uses: actions/upload-artifact@v3
+      with:
+        name: rpg-maker-unpacker-${{ matrix.os }}-${{ matrix.platform }}
+        path: |
+          ${{ matrix.platform }}/${{ matrix.configuration }}/*.exe
+          ${{ matrix.platform }}/${{ matrix.configuration }}/*.dll
+          ${{ matrix.platform }}/${{ matrix.configuration }}/*.pdb
+        retention-days: 30
+
+  code-analysis:
+    name: Code Analysis
+    runs-on: windows-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: cpp
+        queries: security-and-quality
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1.3
+
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v1.2.0
+
+    - name: Restore NuGet packages
+      run: nuget restore "RPG Maker Unpacker.sln"
+
+    - name: Build for CodeQL
+      run: |
+        msbuild "RPG Maker Unpacker.sln" `
+          /p:Configuration=Release `
+          /p:Platform=x64 `
+          /m
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
+  release:
+    name: Create Release
+    needs: [build, code-analysis]
+    runs-on: windows-latest
+    if: github.event_name == 'release'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+
+    - name: Create release packages
+      run: |
+        New-Item -ItemType Directory -Force -Path "release"
+        
+        # Package x64 release
+        if (Test-Path "artifacts/rpg-maker-unpacker-windows-2022-x64") {
+          Compress-Archive -Path "artifacts/rpg-maker-unpacker-windows-2022-x64/*" -DestinationPath "release/RPG-Maker-Unpacker-x64.zip"
+        }
+        
+        # Package Win32 release
+        if (Test-Path "artifacts/rpg-maker-unpacker-windows-2022-Win32") {
+          Compress-Archive -Path "artifacts/rpg-maker-unpacker-windows-2022-Win32/*" -DestinationPath "release/RPG-Maker-Unpacker-Win32.zip"
+        }
+
+    - name: Upload release assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          release/*.zip
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  security-scan:
+    name: Security Scan
+    runs-on: windows-latest
+    continue-on-error: true
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
