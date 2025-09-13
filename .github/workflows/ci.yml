@@ -60,6 +60,26 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-nuget-
 
+    - name: Detect installed Windows 10 SDK version
+      id: detect-winsdk
+      shell: pwsh
+      run: |
+        $sdkLib = "${Env:ProgramFiles(x86)}\Windows Kits\10\Lib"
+        if (-not (Test-Path $sdkLib)) {
+          Write-Error "Windows 10 SDK Lib directory not found at $sdkLib"
+          exit 1
+        }
+        $versions = Get-ChildItem $sdkLib -Directory |
+          Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+          Select-Object -ExpandProperty Name
+        if (-not $versions) {
+          Write-Error "No Windows 10 SDK versions found under $sdkLib"
+          exit 1
+        }
+        $selected = $versions | Sort-Object {[Version]$_} -Descending | Select-Object -First 1
+        Write-Host "Using WindowsTargetPlatformVersion=$selected"
+        "WIN_SDK_VERSION=$selected" | Out-File -FilePath $Env:GITHUB_ENV -Append
+
     - name: Restore NuGet packages
       run: nuget restore "RPG Maker Unpacker.sln"
 
@@ -68,6 +88,7 @@ jobs:
         msbuild "RPG Maker Unpacker.sln" `
           /p:Configuration=${{ matrix.configuration }} `
           /p:Platform=${{ matrix.platform }} `
+          /p:WindowsTargetPlatformVersion=${{ env.WIN_SDK_VERSION }} `
           /p:UseEnv=true `
           /m `
           /verbosity:minimal
@@ -109,6 +130,18 @@ jobs:
     - name: Setup NuGet
       uses: NuGet/setup-nuget@v1.2.0
 
+    - name: Detect installed Windows 10 SDK version
+      id: detect-winsdk-codeql
+      shell: pwsh
+      run: |
+        $sdkLib = "${Env:ProgramFiles(x86)}\Windows Kits\10\Lib"
+        $versions = Get-ChildItem $sdkLib -Directory |
+          Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+          Select-Object -ExpandProperty Name
+        $selected = $versions | Sort-Object {[Version]$_} -Descending | Select-Object -First 1
+        "WIN_SDK_VERSION=$selected" | Out-File -FilePath $Env:GITHUB_ENV -Append
+        Write-Host "Using WindowsTargetPlatformVersion=$selected for CodeQL build"
+
     - name: Restore NuGet packages
       run: nuget restore "RPG Maker Unpacker.sln"
 
@@ -117,6 +150,7 @@ jobs:
         msbuild "RPG Maker Unpacker.sln" `
           /p:Configuration=Release `
           /p:Platform=x64 `
+          /p:WindowsTargetPlatformVersion=${{ env.WIN_SDK_VERSION }} `
           /m
 
     - name: Perform CodeQL Analysis
@@ -138,17 +172,20 @@ jobs:
         path: artifacts
 
     - name: Create release packages
+      shell: pwsh
       run: |
-        New-Item -ItemType Directory -Force -Path "release"
-        
-        # Package x64 release
-        if (Test-Path "artifacts/rpg-maker-unpacker-windows-2022-x64") {
-          Compress-Archive -Path "artifacts/rpg-maker-unpacker-windows-2022-x64/*" -DestinationPath "release/RPG-Maker-Unpacker-x64.zip"
-        }
-        
-        # Package Win32 release
-        if (Test-Path "artifacts/rpg-maker-unpacker-windows-2022-Win32") {
-          Compress-Archive -Path "artifacts/rpg-maker-unpacker-windows-2022-Win32/*" -DestinationPath "release/RPG-Maker-Unpacker-Win32.zip"
+        New-Item -ItemType Directory -Force -Path "release" | Out-Null
+        $pairs = @(
+          @{ Path="artifacts/rpg-maker-unpacker-windows-2022-x64"; Zip="release/RPG-Maker-Unpacker-windows-2022-x64.zip" }
+          @{ Path="artifacts/rpg-maker-unpacker-windows-2022-Win32"; Zip="release/RPG-Maker-Unpacker-windows-2022-Win32.zip" }
+          @{ Path="artifacts/rpg-maker-unpacker-windows-2025-x64"; Zip="release/RPG-Maker-Unpacker-windows-2025-x64.zip" }
+          @{ Path="artifacts/rpg-maker-unpacker-windows-2025-Win32"; Zip="release/RPG-Maker-Unpacker-windows-2025-Win32.zip" }
+        )
+        foreach ($p in $pairs) {
+          if (Test-Path $p.Path) {
+            Compress-Archive -Path "$($p.Path)/*" -DestinationPath $p.Zip -Force
+            Write-Host "Packaged $($p.Zip)"
+          }
         }
 
     - name: Upload release assets
