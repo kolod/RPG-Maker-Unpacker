@@ -37,7 +37,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2022, windows-2025]
-        platform: [x64, Win32]
+        platform: [x64, x86]  # Changed from Win32 to x86
         configuration: [Debug, Release]
         
     steps:
@@ -177,9 +177,9 @@ jobs:
         New-Item -ItemType Directory -Force -Path "release" | Out-Null
         $pairs = @(
           @{ Path="artifacts/rpg-maker-unpacker-windows-2022-x64"; Zip="release/RPG-Maker-Unpacker-windows-2022-x64.zip" }
-          @{ Path="artifacts/rpg-maker-unpacker-windows-2022-Win32"; Zip="release/RPG-Maker-Unpacker-windows-2022-Win32.zip" }
+          @{ Path="artifacts/rpg-maker-unpacker-windows-2022-x86"; Zip="release/RPG-Maker-Unpacker-windows-2022-x86.zip" }
           @{ Path="artifacts/rpg-maker-unpacker-windows-2025-x64"; Zip="release/RPG-Maker-Unpacker-windows-2025-x64.zip" }
-          @{ Path="artifacts/rpg-maker-unpacker-windows-2025-Win32"; Zip="release/RPG-Maker-Unpacker-windows-2025-Win32.zip" }
+          @{ Path="artifacts/rpg-maker-unpacker-windows-2025-x86"; Zip="release/RPG-Maker-Unpacker-windows-2025-x86.zip" }
         )
         foreach ($p in $pairs) {
           if (Test-Path $p.Path) {
