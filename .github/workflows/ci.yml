@@ -53,7 +53,7 @@ jobs:
       uses: NuGet/setup-nuget@v1.2.0
 
     - name: Cache NuGet packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.config') }}
@@ -74,13 +74,15 @@ jobs:
 
     - name: Upload build artifacts
       if: matrix.configuration == 'Release'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: rpg-maker-unpacker-${{ matrix.os }}-${{ matrix.platform }}
         path: |
           ${{ matrix.platform }}/${{ matrix.configuration }}/*.exe
           ${{ matrix.platform }}/${{ matrix.configuration }}/*.dll
           ${{ matrix.platform }}/${{ matrix.configuration }}/*.pdb
+        if-no-files-found: error
+        compression-level: 9
         retention-days: 30
 
   code-analysis:
@@ -131,7 +133,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
 
